@@ -1,0 +1,241 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(xts)
+library(reshape)
+library(zoo)
+library(urca)
+library(vars)
+```
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(lattice)
+library(tidyverse)
+library(lubridate)
+library(stringr)
+library(xts)
+library(urca)
+library(dynlm)
+library(tseries)
+library(quantmod)
+library(lmtest)
+library(sandwich)
+```
+
+
+
+```{r}
+gt <- read.csv("C:\\Users\\jacob\\OneDrive\\Documents\\EECS448\\Project\\Data\\gt_data.csv")
+gt$start <- as.Date(gt$start)
+head(gt)
+```
+
+```{r}
+# Modify the dates so that the first Google Trend result of every month is on the first. This is so we can merge it with CPI. Google Trends was an average over a period of a week, so changing the reference date by < 7 days shouldn't impact results
+
+gt <- gt %>%
+  arrange(start) %>% 
+  group_by(year = format(start, "%Y"), month = format(start, "%m")) %>% # Group by year and month
+  mutate(start = if_else(row_number() == 1, as.Date(paste(year, month, "01", sep = "-")), start)) %>% # Change date to first of the month for the first row in each group
+  ungroup()
+gt <- gt[, !names(gt) %in% c("year", "month")]
+
+head(gt)
+```
+
+
+```{r}
+CSI <- read.csv("/Users/kenjiwagner/Desktop/eecs448/projectstuff/EECS448Monthly.csv")
+CSI <- CSI[c("DATE", "CSI")]
+CSI$DATE <- as.Date(CSI$DATE)
+head(CSI)
+```
+
+```{r}
+# Merge Google Trends with CSI
+
+trends <- merge(gt, CSI, by.x = "start", by.y = "DATE", all.x = TRUE)
+
+trends
+```
+
+Plot data
+
+```{r}
+variables <- setdiff(colnames(trends), c("start", "CSI"))
+
+trends_cp <- trends
+trends_cp$CSI <- trends$CSI / 500
+
+for (var in variables) {
+  df <- melt(trends_cp[,c("start", "CSI", var)], id.vars = "start")
+  df$value <- zoo::na.approx(df$value, na.rm = FALSE)
+
+  g <- ggplot(df, aes(x = start, y = value, color = variable)) +
+    geom_line() +
+    labs(title = paste(var, " and CSI (scaled) over time"), x = "Date", y = "Value") +
+    theme_minimal()
+  print(g)
+}
+```
+
+Ignore lagged data and only work with google trends at time of CSI
+```{r}
+#trends_interp <- trends
+#trends_interp$CSI <- zoo::na.approx(trends_interp$CSI, na.rm = FALSE)
+trends_interp <- na.omit(trends)
+```
+
+Pearson correlation of each variable with CSI
+```{r}
+cor_matrix <- cor(trends_interp[, -which(names(trends_interp) == "start")], use = "complete.obs")
+cor_matrix["CSI",]
+```
+
+Recession, inflation, housing_market, used_car, gas_price, and layoff all have moderate correlation (|R| > 0.3)
+
+Plotting CSI and variables on same plot with two y-axis (can be misleading, but useful to see how they move together)
+```{r}
+
+CSI <- xyplot(CSI~ start,
+               data = trends_interp, type = "l")
+var <- xyplot(used_car~ start,
+              data = trends_interp, type = "l")
+latticeExtra::doubleYScale(CSI,var,style1 = 5, style2 = 3, add.ylab2 = TRUE)
+```
+
+Test stationarity of CSI
+```{r}
+adf_result = adf.test(trends_interp$CSI, alternative = "stationary")
+print(adf_result)
+```
+
+Cross Correlation of each variable with CSI
+```{r}
+variables <- setdiff(colnames(trends), c("start", "CSI"))
+
+trends_cp <- trends_interp
+
+lags_max <- 30
+
+for (var in variables) {
+  ccf_result <- ccf(trends_cp[[var]], trends_cp$CSI, plot = FALSE, lag.max = lags_max)
+
+  correlations <- ccf_result$acf
+  lags <- seq(-lags_max, lags_max)
+  
+  plot(lags, correlations, type = "h", ylim = c(-1, 1), xlab = "Lag", ylab = "Cross-Correlation",
+       main = paste(var, ", CSI cross-correlation"))
+    abline(h = 0, col = "black")
+    abline(h = 0.06, col = "blue")
+    abline(h = -0.06, col = "blue")
+}
+```
+
+Note: positive lag means variable precedes CSI
+
+
+
+Function to run Granger Causality Test over multiple windows to determine causality between variables and CSI
+```{r}
+library(vars)
+library(zoo)
+
+
+rolling_granger_test <- function(trends_interp, window_size = 156, step_size = 52) {
+  
+  results <- list()
+  
+  # Loop through variables
+  for (var in names(trends_interp)) {
+    if (var %in% c("CSI", "start") || !is.numeric(trends_interp[[var]])) next
+    var_results <- list()
+    
+    start <- 1
+    while (start < (nrow(trends_interp) - window_size + 1)) {
+      end <- start + window_size - 1
+      
+      # Extract the window of data for CSI and the current variable and convert to time series
+      window_data <- trends_interp[start:end, c("CSI", var)]
+      if (any(is.na(window_data))) next
+      window_ts <- ts(window_data, frequency = 12)
+      
+      # Perform Granger causality test and store p-value
+      try({
+        test_result <- grangertest(window_data[, var], window_data[, "CSI"], order = 1)
+        var_results[[paste0("Start:", start, " End:", end)]] <- test_result$"Pr(>F)"[2]
+      })
+      
+      start <- start + step_size
+    }
+    
+    results[[var]] <- var_results
+  }
+  
+  # print mean and standard deviation of each p-value
+  stats <- lapply(results, function(p_values) {
+    numeric_p_values <- as.numeric(p_values)
+    
+    list(
+      mean = mean(numeric_p_values, na.rm = TRUE),
+      sd = sd(numeric_p_values, na.rm = TRUE)
+    )
+  })
+  
+  for (var in names(stats)) {
+    cat("Variable:", var, "\n")
+    
+    mean_p_value <- stats[[var]]$mean
+    sd_p_value <- stats[[var]]$sd
+    
+    # Return number of asterisks based on significance level
+    significance_stars <- function(p_value) {
+      if (p_value < 0.01) {
+        return("***")
+      } else if (p_value < 0.05) {
+        return("**")
+      } else if (p_value < 0.1) {
+        return("*")
+      } else {
+        return("")
+      }
+    }
+    
+    mean_stars <- significance_stars(mean_p_value)
+    sd_stars <- significance_stars(sd_p_value)
+    
+    cat("Mean of p-values:", mean_p_value, mean_stars, "\n")
+    cat("Standard deviation of p-values:", sd_p_value, sd_stars, "\n\n")
+  }
+}
+
+```
+
+Rolling Granger test of each variable with CSI
+```{r}
+rolling_granger_test(trends_interp)
+```
+
+
+Explore causal relationship between predictor variables and CSI when predictor variables are lagged. Change n below to explore different lags.
+```{r}
+trends_lagged <- trends %>%
+  mutate(across(-c(start, CSI), lag, n = 4)) %>%
+  na.omit()
+
+rolling_granger_test(trends_lagged)
+
+```
+
+
+Recalculate CCF and cointegration with predictor variables lagged
+
