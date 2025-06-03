@@ -8,12 +8,18 @@ gf_analysis.ipynb was for searching for trends in the data. trends_analysis.Rmd 
 
 # 🔧 Key Features
 Data sources: Google Trends, FRED, and Yahoo Finance
+
 Time series models: ARIMA, VAR, and MIDAS
+
 Feature engineering and lag selection for economic indicators
+
 Achieved high forecast accuracy (R² = 0.972 with VAR model)
 
 # 📊 Tools & Technologies
 R, Python
+
 Google Trends
+
 FRED & Yahoo Finance data ingestion
+
 Time series cross-validation & model diagnostics
