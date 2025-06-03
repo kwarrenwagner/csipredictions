@@ -4,7 +4,8 @@ Using Google Trends and Macroeconomic Data
 Jacob Richman, Kenji Wagner, Andrew Ye
 University of Michigan
 
-1 Introduction
+# 1 Introduction
+
 The University of Michigan Consumer Sentiment
 Index (CSI) is a survey that measures how
 consumers feel about their future financial
