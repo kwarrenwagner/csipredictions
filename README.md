@@ -12,7 +12,7 @@ Time series models: ARIMA, VAR, and MIDAS
 Feature engineering and lag selection for economic indicators
 Achieved high forecast accuracy (R² = 0.972 with VAR model)
 
-#📊 Tools & Technologies
+# 📊 Tools & Technologies
 R, Python
 Google Trends
 FRED & Yahoo Finance data ingestion
