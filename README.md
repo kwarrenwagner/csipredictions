@@ -128,6 +128,7 @@ works. We also selected these variables based on
 the understanding of the domains.
 
 Sources         Variables Tested
+
 Google Trends   “inflation”, “unemployment”, “interest rate”,”rental housing” , “job opening”, “economy”, “tourism”, “layoff”, “employment”, “debt management”, “rent”, “wages”, “real estate”, “used car”, “gas price”, “recession”, “housing market”, “tax cut”, “federal reserve”
 
 FRED Monthly   Total Healthcare Construction Spending, One-Year Real Interest Rate, Two Year Expected Inflation Rate, Inventory to Sales Ratio, Total
