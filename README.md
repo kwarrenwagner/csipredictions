@@ -126,6 +126,7 @@ tested. We selected these variables based on the
 questions of the CSI survey and prior research
 works. We also selected these variables based on
 the understanding of the domains.
+
 Sources         Variables Tested
 Google Trends   “inflation”, “unemployment”, “interest rate”,”rental housing” , “job opening”, “economy”, “tourism”, “layoff”, “employment”, “debt management”, “rent”, “wages”, “real estate”, “used car”, “gas price”, “recession”, “housing market”, “tax cut”, “federal reserve”
 
